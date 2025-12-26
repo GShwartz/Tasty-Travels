@@ -6,23 +6,11 @@ import sys
 from pathlib import Path
 import os
 import logging
-import pygetwindow as gw  # Required: pip install pygetwindow pyrect
+import pygetwindow as gw
 
-# -----------------------------
-# PROJECT PATHS
-# -----------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-
-if os.name == "nt":
-    ADB_BINARY = PROJECT_ROOT / "adb" / "adb.exe"
-else:
-    ADB_BINARY = PROJECT_ROOT / "adb" / "adb"
-
-# -----------------------------
-# BOT CONFIGURATION
-# -----------------------------
-
+ADB_BINARY = PROJECT_ROOT / "adb" / "adb.exe"
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "energy.png"
 MATCH_THRESHOLD = 0.88
 FRAME_INTERVAL = 0.05 
@@ -31,9 +19,6 @@ COOLDOWN = 0.4
 last_tap_time = 0.0
 ADB_SERIAL = None 
 
-# -----------------------------
-# LOGGER (Restored & Verified)
-# -----------------------------
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,9 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TastyTravelsBot")
 
-# -----------------------------
-# WINDOW MANAGEMENT
-# -----------------------------
 
 def bring_window_to_front():
     """Finds the BlueStacks window and brings it to the foreground."""
@@ -62,9 +44,6 @@ def bring_window_to_front():
     except Exception as e:
         logger.error("Failed to focus window: %s", e)
 
-# -----------------------------
-# ADB HELPERS
-# -----------------------------
 
 def adb(cmd, serial=None):
     if not ADB_BINARY.exists():
@@ -145,10 +124,6 @@ def tap(x, y, serial):
     adb(["shell", "input", "tap", str(x), str(y)], serial)
 
 
-# -----------------------------
-# VISION & MARKING
-# -----------------------------
-
 def load_template():
     img = cv2.imread(str(TEMPLATE_PATH))
     if img is None:
@@ -160,11 +135,6 @@ def load_template():
 def find_and_act(frame, template, serial):
     global last_tap_time
 
-    # ---------------------------------------------------------
-    # IMPROVED MATCHING: MASKING
-    # We create a mask where pixels > 0 in the template are matched,
-    # and black pixels (where your numbers are) are ignored.
-    # ---------------------------------------------------------
     mask = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
     _, mask = cv2.threshold(mask, 1, 255, cv2.THRESH_BINARY)
 
@@ -197,10 +167,6 @@ def find_and_act(frame, template, serial):
     cv2.waitKey(1)
 
 
-# -----------------------------
-# MAIN LOOP
-# -----------------------------
-
 def main():
     global ADB_SERIAL
 
@@ -229,8 +195,10 @@ def main():
             delay = FRAME_INTERVAL - elapsed
             if delay > 0:
                 time.sleep(delay)
+
     except KeyboardInterrupt:
         logger.info("Exiting bot...")
+
     finally:
         cv2.destroyAllWindows()
         close_adb_conn(ADB_SERIAL)
