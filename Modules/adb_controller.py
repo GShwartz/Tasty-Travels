@@ -29,7 +29,13 @@ class ADBController:
         self.run_cmd(["connect", self.serial])
 
     def get_screenshot(self):
+        # exec-out is faster but can sometimes return empty buffers if the connection is unstable
         raw = self.run_cmd(["exec-out", "screencap", "-p"])
+        
+        # FIX: Check if we actually got image data (PNGs have a header)
+        if not raw or len(raw) < 100:
+            return None
+            
         img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
         return img
 

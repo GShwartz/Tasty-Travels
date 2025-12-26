@@ -13,8 +13,9 @@ class WindowManager:
                 if win.isMinimized: win.restore()
                 win.activate()
                 logger.info(f"Focused window: {win.title}")
+                
             else:
                 logger.warning(f"{title_keyword} window not found.")
+
         except Exception as e:
             logger.error(f"Failed to focus window: {e}")
-            
