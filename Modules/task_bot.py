@@ -20,7 +20,7 @@ class TaskBot:
         # Detection Thresholds
         self.threshold = 0.85      
         self.energy_thresh = 0.70  
-        self.go_thresh = 0.60  # Raised - we need a better match
+        self.go_thresh = 0.60
         
         self.mark_thickness = 3
         self.scale_percent = 0.6 
@@ -40,20 +40,20 @@ class TaskBot:
         density = np.count_nonzero(edges) / (roi.shape[0] * roi.shape[1])
         return density > 0.18
 
-    def _detect_go_button_by_color(self, frame):
-        """Detect the green GO button using color detection"""
+    def _detect_all_go_buttons(self, frame):
+        """Detect ALL green GO buttons using color detection - returns list of detections"""
         h, w = frame.shape[:2]
         
-        # Define the search region - ONLY the top area where GO button appears
-        # GO button is between 10-25% from top
+        # Define the search region - ONLY the header area where GO buttons appear
+        # GO buttons are between 10-30% from top (the draggable header)
         search_top = int(h * 0.10)
-        search_bottom = int(h * 0.30)  # Reduced to avoid game board
+        search_bottom = int(h * 0.30)
         search_roi = frame[search_top:search_bottom, 0:w]
         
         # Convert to HSV for color detection
         hsv = cv2.cvtColor(search_roi, cv2.COLOR_BGR2HSV)
         
-        # Bright green for GO button - more specific range
+        # Bright green for GO button - specific range
         lower_green = np.array([45, 120, 120])
         upper_green = np.array([75, 255, 255])
         
@@ -63,8 +63,8 @@ class TaskBot:
         # Find contours
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Look for GO button - it should be relatively large and centered
-        candidates = []
+        # Look for ALL GO buttons
+        go_buttons = []
         for cnt in contours:
             area = cv2.contourArea(cnt)
             if 1500 < area < 8000:  # GO button size range
@@ -73,17 +73,19 @@ class TaskBot:
                 # Check aspect ratio (GO button is wider than tall)
                 aspect_ratio = w_btn / h_btn if h_btn > 0 else 0
                 if 1.8 < aspect_ratio < 3.5:
-                    # Check if it's relatively centered (GO button appears center-ish)
-                    center_x = x + w_btn / 2
-                    if 0.3 * w < center_x < 0.7 * w:  # Center 40% of screen
-                        candidates.append((x, y + search_top, w_btn, h_btn, area))
+                    # Adjust y coordinate back to original frame coordinates
+                    go_buttons.append({
+                        'x': x,
+                        'y': y + search_top,
+                        'w': w_btn,
+                        'h': h_btn,
+                        'area': area
+                    })
         
-        # Return the largest candidate (GO button should be biggest green element in that area)
-        if candidates:
-            candidates.sort(key=lambda c: c[4], reverse=True)
-            return candidates[0][:4]
+        # Sort by x coordinate (left to right) for consistent ordering
+        go_buttons.sort(key=lambda btn: btn['x'])
         
-        return None
+        return go_buttons
 
     def process_frame(self, frame):
         if frame is None: return
@@ -91,7 +93,6 @@ class TaskBot:
         h, w = frame.shape[:2]
         
         board_clogged = self._is_board_full(frame)
-        go_button_found = False
 
         # 1. ENERGY (GREEN)
         if self.tm.energy_template is not None:
@@ -101,27 +102,32 @@ class TaskBot:
                 eh, ew = self.tm.energy_template.shape[:2]
                 cv2.rectangle(display_frame, max_loc_e, (max_loc_e[0]+ew, max_loc_e[1]+eh), (0, 255, 0), self.mark_thickness)
 
-        # 2. GO BUTTON - COLOR-BASED DETECTION
-        go_result = self._detect_go_button_by_color(frame)
+        # 2. ALL GO BUTTONS - COLOR-BASED DETECTION
+        go_buttons = self._detect_all_go_buttons(frame)
         
-        if go_result is not None:
-            go_button_found = True
-            x, y, w_btn, h_btn = go_result
-            
-            # Add padding to wrap around the entire button visually
-            padding = 5
-            x_padded = max(0, x - padding)
-            y_padded = max(0, y - padding)
-            w_padded = min(w, x + w_btn + padding) - x_padded
-            h_padded = min(h, y + h_btn + padding) - y_padded
-            
-            # Draw rectangle around GO button (wrapped around it)
-            color = (0, 0, 255)
-            cv2.rectangle(display_frame, (x_padded, y_padded), (x_padded + w_padded, y_padded + h_padded), color, 2)
-            
-            # Removed center marker as requested
-            
-            logger.debug(f"GO button found at ({x}, {y}) size={w_btn}x{h_btn}")
+        if go_buttons:
+            for idx, btn in enumerate(go_buttons):
+                x, y = btn['x'], btn['y']
+                w_btn, h_btn = btn['w'], btn['h']
+                
+                # Add padding to wrap around the entire button visually
+                padding = 5
+                x_padded = max(0, x - padding)
+                y_padded = max(0, y - padding)
+                w_padded = min(w, x + w_btn + padding) - x_padded
+                h_padded = min(h, y + h_btn + padding) - y_padded
+                
+                # Draw rectangle around GO button (wrapped around it)
+                color = (0, 0, 255)  # Red
+                cv2.rectangle(display_frame, (x_padded, y_padded), 
+                            (x_padded + w_padded, y_padded + h_padded), color, 2)
+                
+                # Add number label to each GO button
+                label = f"GO{idx+1}"
+                cv2.putText(display_frame, label, (x_padded, y_padded - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                
+                logger.debug(f"GO button #{idx+1} at ({x}, {y}) size={w_btn}x{h_btn}")
 
         # 3. ITEMS (Generators & Orders)
         for category in ['generators', 'orders']:
@@ -133,11 +139,11 @@ class TaskBot:
                     color = (0, 255, 0) if category == 'generators' else (0, 165, 255)
                     cv2.rectangle(display_frame, max_loc_i, (max_loc_i[0]+iw, max_loc_i[1]+ih), color, self.mark_thickness)
 
-        # UI OVERLAY
-        status_text = "FULL" if board_clogged else "READY"
-        cv2.putText(display_frame, status_text, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
-        
-        # Removed GO DETECTED text as requested
+        # UI OVERLAY - Show count of GO buttons detected
+        status_text = f"GO Buttons: {len(go_buttons)}" if go_buttons else ""
+        cv2.putText(display_frame, status_text, (20, 50), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         
         cv2.imshow("Bot Tracker", cv2.resize(display_frame, None, fx=self.scale_percent, fy=self.scale_percent))
         cv2.waitKey(1)
+        
