@@ -27,3 +27,5 @@ screen.png
 # ADB
 adbkey
 adbkey.pub
+proc/*.png
+

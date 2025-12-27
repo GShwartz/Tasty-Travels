@@ -45,7 +45,7 @@ def main():
 
     try:
         while True:
-            # IMPORTANT: Pull frame from the Thread Queue, not ADB directly
+            # Pull frame from the Thread Queue
             if not capture.frame_queue.empty():
                 frame = capture.frame_queue.get()
                 bot.process_frame(frame)
@@ -55,10 +55,14 @@ def main():
 
     except KeyboardInterrupt:
         main_logger.info("Exiting...")
-        capture.stop()
-
+        
     finally:
+        # Cleanup threads
+        capture.stop()
+        bot.cleanup()
         cv2.destroyAllWindows()
+        main_logger.info("Cleanup complete.")
 
 if __name__ == "__main__":
     main()
+    
