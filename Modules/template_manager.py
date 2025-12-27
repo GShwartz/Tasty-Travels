@@ -1,3 +1,4 @@
+# template_manager.py full file
 import cv2
 from pathlib import Path
 import logging
@@ -45,4 +46,3 @@ class TemplateManager:
                         'img': img,
                         'mask': self._create_mask(img)
                     })
-                    
