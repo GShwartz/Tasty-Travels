@@ -246,11 +246,11 @@ class TaskBot:
                 
                 # Draw ROI rectangle for debugging (cyan color)
                 gap_start = 5
-                gap_width = 60
+                gap_width = 80
                 roi_x = max_loc_e[0] + ew + gap_start
                 roi_y = max_loc_e[1]
-                # cv2.rectangle(display_frame, (roi_x, roi_y), 
-                #             (roi_x + gap_width, roi_y + eh), (255, 255, 0), 2)
+                cv2.rectangle(display_frame, (roi_x, roi_y), 
+                            (roi_x + gap_width, roi_y + eh), (255, 255, 0), 2)
                 energy_roi_drawn = True
                 
                 # Submit energy ROI to OCR worker (non-blocking)
